@@ -6,3 +6,9 @@ venv/
 .idea/
 .vscode/
 .DS_Store
+cookies.txt
+instance/*.db
+*.db
+__pycache__/
+*.pyc
+.venv/
