@@ -1,14 +1,24 @@
+# Python
 __pycache__/
 *.pyc
+
+# Virtual environments
 .venv/
 venv/
+
+# Environment variables
 .env
+
+# IDEs / Editors
 .idea/
 .vscode/
+
+# OS files
 .DS_Store
+
+# Local / temp files
 cookies.txt
+
+# Databases (local)
 instance/*.db
 *.db
-__pycache__/
-*.pyc
-.venv/
