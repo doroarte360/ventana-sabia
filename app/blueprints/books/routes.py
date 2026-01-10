@@ -2,6 +2,7 @@ from flask import Blueprint, jsonify, request, session
 from ...extensions import db
 from ...models import Book
 from ..auth.decorators import login_required
+from sqlalchemy import or_
 
 bp = Blueprint("books", __name__, url_prefix="/books")
 
@@ -68,6 +69,89 @@ def list_books():
             }
             for b in books
         ]
+    ), 200
+
+
+
+def _parse_bool(value: str | None):
+    if value is None:
+        return None
+    v = value.strip().lower()
+    if v in ("1", "true", "t", "yes", "y", "si", "sí"):
+        return True
+    if v in ("0", "false", "f", "no", "n"):
+        return False
+    return None
+
+
+@bp.get("/search")
+def search_books():
+    q = (request.args.get("q") or "").strip()
+    genre = (request.args.get("genre") or "").strip()
+    language = (request.args.get("language") or "").strip()
+
+    available = _parse_bool(request.args.get("available"))
+    donor = request.args.get("donor")  # donor_id opcional
+
+    # Paginación
+    try:
+        page = int(request.args.get("page", 1))
+        per_page = int(request.args.get("per_page", 20))
+    except ValueError:
+        return jsonify(error="bad_request", message="page/per_page must be integers"), 400
+
+    page = max(page, 1)
+    per_page = min(max(per_page, 1), 100)
+
+    query = Book.query
+
+    # Texto: title OR author
+    if q:
+        like = f"%{q}%"
+        query = query.filter(or_(Book.title.ilike(like), Book.author.ilike(like)))
+
+    if genre:
+        query = query.filter(Book.genre == genre)
+
+    if language:
+        query = query.filter(Book.language == language)
+
+    # disponible
+    if available is not None:
+        query = query.filter(Book.is_available.is_(available))
+
+    # donor opcional
+    if donor:
+        try:
+            donor_id = int(donor)
+        except ValueError:
+            return jsonify(error="bad_request", message="donor must be an integer"), 400
+
+        query = query.filter(Book.donor_id == donor_id)
+
+    # orden
+    query = query.order_by(Book.created_at.desc())
+
+    total = query.count()
+    books = query.offset((page - 1) * per_page).limit(per_page).all()
+
+    return jsonify(
+        items=[
+            {
+                "id": b.id,
+                "title": b.title,
+                "author": b.author,
+                "genre": b.genre,
+                "language": b.language,
+                "is_available": b.is_available,
+                "donor_id": b.donor_id,
+                "created_at": b.created_at.isoformat() if b.created_at else None,
+            }
+            for b in books
+        ],
+        total=total,
+        page=page,
+        per_page=per_page,
     ), 200
 
 
