@@ -22,3 +22,4 @@ cookies.txt
 # Databases (local)
 instance/*.db
 *.db
+cookies*.txt

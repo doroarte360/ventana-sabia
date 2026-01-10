@@ -20,6 +20,10 @@ def create_request():
     if not book:
         return jsonify(error="book_not_found"), 404
 
+    # opcional (recomendado): no permitir pedir libros no disponibles
+    if not book.is_available:
+        return jsonify(error="book_not_available"), 409
+
     requester_id = session["user_id"]
 
     if book.donor_id == requester_id:
@@ -28,19 +32,16 @@ def create_request():
     existing = BookRequest.query.filter_by(
         book_id=book.id,
         requester_id=requester_id,
-        status="pending"
+        status="PENDING"
     ).first()
 
     if existing:
-        return jsonify(
-            error="request_already_pending",
-            request_id=existing.id
-        ), 409
+        return jsonify(error="request_already_pending", request_id=existing.id), 409
 
     req = BookRequest(
         book_id=book.id,
         requester_id=requester_id,
-        status="pending"
+        status="PENDING"
     )
 
     db.session.add(req)
@@ -53,6 +54,7 @@ def create_request():
         requester_id=req.requester_id,
         status=req.status
     ), 201
+
 
 
 # ---------- MY REQUESTS ----------
@@ -84,3 +86,83 @@ def my_requests():
             for r in reqs
         ]
     ), 200
+# ---------- CANCEL REQUEST (REQUESTER) ----------
+@bp.patch("/<int:request_id>/cancel")
+@login_required
+def cancel_request(request_id):
+    user_id = session["user_id"]
+    req = BookRequest.query.get_or_404(request_id)
+
+    if req.requester_id != user_id:
+        return jsonify(error="forbidden"), 403
+
+    if req.status != "PENDING":
+        return jsonify(error="invalid_state", current=req.status, allowed=["PENDING"]), 400
+
+    req.status = "CANCELLED"
+
+    # si no hay ACCEPTED para este libro, vuelve disponible
+    has_accepted = (
+        BookRequest.query
+        .filter_by(book_id=req.book_id, status="ACCEPTED")
+        .first()
+        is not None
+    )
+    if not has_accepted:
+        req.book.is_available = True
+
+    db.session.commit()
+    return jsonify(message="cancelled", id=req.id, status=req.status), 200
+
+
+# ---------- ACCEPT / REJECT (DONOR) ----------
+def _ensure_donor(req: BookRequest):
+    user_id = session["user_id"]
+    if req.book.donor_id != user_id:
+        return False
+    return True
+
+
+@bp.patch("/<int:request_id>/accept")
+@login_required
+def donor_accept(request_id):
+    req = BookRequest.query.get_or_404(request_id)
+
+    if not _ensure_donor(req):
+        return jsonify(error="forbidden"), 403
+
+    if req.status != "PENDING":
+        return jsonify(error="invalid_state", current=req.status, allowed=["PENDING"]), 400
+
+    req.status = "ACCEPTED"
+    req.book.is_available = False
+
+    db.session.commit()
+    return jsonify(message="accepted", id=req.id, status=req.status), 200
+
+
+@bp.patch("/<int:request_id>/reject")
+@login_required
+def donor_reject(request_id):
+    req = BookRequest.query.get_or_404(request_id)
+
+    if not _ensure_donor(req):
+        return jsonify(error="forbidden"), 403
+
+    if req.status != "PENDING":
+        return jsonify(error="invalid_state", current=req.status, allowed=["PENDING"]), 400
+
+    req.status = "REJECTED"
+
+    # si no hay ACCEPTED para este libro, vuelve disponible
+    has_accepted = (
+        BookRequest.query
+        .filter_by(book_id=req.book_id, status="ACCEPTED")
+        .first()
+        is not None
+    )
+    if not has_accepted:
+        req.book.is_available = True
+
+    db.session.commit()
+    return jsonify(message="rejected", id=req.id, status=req.status), 200
