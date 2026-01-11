@@ -97,6 +97,7 @@ def admin_list_users():
     q = (request.args.get("q") or "").strip()
     role = (request.args.get("role") or "").strip()
     active = (request.args.get("active") or "").strip()
+    blocked = (request.args.get("blocked") or "").strip()
 
     query = User.query
 
@@ -126,31 +127,39 @@ def admin_list_users():
             "email": getattr(u, "email", None),
             "role": getattr(u, "role", None),
             "is_active": getattr(u, "is_active", True),
+            "is_blocked": getattr(u, "is_blocked", False),
             "created_at": getattr(u, "created_at", None),
         }
         for u in users
     ])
 
-
-@bp.route("/users/<int:user_id>/role", methods=["PATCH"])
+@bp.route("/users/<int:user_id>/block", methods=["PATCH"])
 @login_required
-@superadmin_required
-def admin_change_user_role(user_id):
+@admin_required
+def admin_set_user_block(user_id):
     data = _json()
-    new_role = (data.get("role") or "").strip()
+    if "is_blocked" not in data:
+        abort(400, "Missing is_blocked")
 
-    if new_role not in ALLOWED_ROLES:
-        abort(400, "Invalid role")
-
-    # evita lock-out
-    if _uid() == user_id and new_role != "admin":
-        abort(400, "You cannot remove your own admin role")
+    try:
+        is_blocked = _parse_bool(data["is_blocked"])
+    except ValueError:
+        abort(400, "is_blocked must be true/false")
 
     user = User.query.get_or_404(user_id)
-    user.role = new_role
+
+    # regla: solo admin puede tocar a admins
+    if getattr(user, "role", None) == "admin" and _role() != "admin":
+        abort(403)
+
+    # evita auto-bloqueo
+    if _uid() == user_id and is_blocked:
+        abort(400, "You cannot block yourself")
+
+    user.is_blocked = is_blocked
     db.session.commit()
 
-    return jsonify({"message": "Role updated", "id": user.id, "role": user.role})
+    return jsonify({"message": "Block updated", "id": user.id, "is_blocked": user.is_blocked})
 
 
 @bp.route("/users/<int:user_id>/status", methods=["PATCH"])
