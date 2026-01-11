@@ -1,5 +1,5 @@
-# app/blueprints/admin/routes.py
-
+from app.models.admin_action import AdminAction
+from app.services.admin_audit import log_admin_action
 from flask import request, jsonify, abort, session
 from ..auth.decorators import login_required
 from . import bp
@@ -158,6 +158,12 @@ def admin_set_user_block(user_id):
 
     user.is_blocked = is_blocked
     db.session.commit()
+    log_admin_action(
+        admin_id=_uid(),
+        action=AdminAction.Actions.USER_BLOCK if is_blocked else AdminAction.Actions.USER_UNBLOCK,
+        target_type="user",
+        target_id=user.id,
+    )
 
     return jsonify({"message": "Block updated", "id": user.id, "is_blocked": user.is_blocked})
 
