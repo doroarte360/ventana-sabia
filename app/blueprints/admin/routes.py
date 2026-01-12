@@ -3,8 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from functools import wraps
 
-from flask import request, jsonify, session
-from werkzeug.exceptions import abort
+from flask import request, jsonify, session, abort
 
 from app.extensions import db
 from app.models.user import User
@@ -41,6 +40,7 @@ def admin_required(fn):
         if _role() not in {"admin", "moderator"}:
             abort(403, description="admin_required")
         return fn(*args, **kwargs)
+
     return wrapper
 
 
@@ -50,6 +50,7 @@ def superadmin_required(fn):
         if _role() != "admin":
             abort(403, description="superadmin_required")
         return fn(*args, **kwargs)
+
     return wrapper
 
 
@@ -83,7 +84,7 @@ def _set_book_availability_from_requests(book_id: int) -> None:
     book = Book.query.get(book_id)
     if not book:
         return
-    book.is_available = (not has_accepted)
+    book.is_available = not has_accepted
 
 
 def _parse_iso_dt(value: str) -> datetime:
@@ -97,12 +98,16 @@ def _parse_iso_dt(value: str) -> datetime:
     try:
         return datetime.fromisoformat(v)
     except ValueError:
-        abort(400, description="Invalid datetime format. Use ISO 8601, e.g. 2026-01-12T14:00:00Z")
+        abort(
+            400,
+            description="Invalid datetime format. Use ISO 8601, e.g. 2026-01-12T14:00:00Z",
+        )
 
 
 # -------------------
 # USERS
 # -------------------
+
 
 @bp.route("/users", methods=["GET"])
 @login_required
@@ -116,40 +121,46 @@ def admin_list_users():
     query = User.query
 
     if q:
+        if len(q) < 2:
+            abort(400, description="q must be at least 2 characters")
         like = f"%{q}%"
         query = query.filter((User.username.ilike(like)) | (User.email.ilike(like)))
 
     if role:
+        if role not in ALLOWED_ROLES:
+            abort(400, description="Invalid role")
         query = query.filter(User.role == role)
 
     if active:
         try:
             is_active = _parse_bool(active)
-            query = query.filter(User.is_active == is_active)
         except ValueError:
             abort(400, description="active must be true/false")
+        query = query.filter(User.is_active == is_active)
 
     if blocked:
         try:
             is_blocked = _parse_bool(blocked)
-            query = query.filter(User.is_blocked == is_blocked)
         except ValueError:
             abort(400, description="blocked must be true/false")
+        query = query.filter(User.is_blocked == is_blocked)
 
     users = query.order_by(User.id.desc()).limit(200).all()
 
-    return jsonify([
-        {
-            "id": u.id,
-            "username": getattr(u, "username", None),
-            "email": getattr(u, "email", None),
-            "role": getattr(u, "role", None),
-            "is_active": getattr(u, "is_active", True),
-            "is_blocked": getattr(u, "is_blocked", False),
-            "created_at": getattr(u, "created_at", None),
-        }
-        for u in users
-    ])
+    return jsonify(
+        [
+            {
+                "id": u.id,
+                "username": getattr(u, "username", None),
+                "email": getattr(u, "email", None),
+                "role": getattr(u, "role", None),
+                "is_active": getattr(u, "is_active", True),
+                "is_blocked": getattr(u, "is_blocked", False),
+                "created_at": u.created_at.isoformat() if getattr(u, "created_at", None) else None,
+            }
+            for u in users
+        ]
+    )
 
 
 @bp.route("/users/<int:user_id>/block", methods=["PATCH"])
@@ -222,6 +233,8 @@ def admin_set_user_status(user_id: int):
     )
 
     return jsonify({"message": "Status updated", "id": user.id, "is_active": user.is_active})
+
+
 @bp.route("/users/<int:user_id>/role", methods=["PATCH"])
 @login_required
 @superadmin_required
@@ -242,6 +255,10 @@ def admin_set_user_role(user_id: int):
     user.role = new_role
     db.session.commit()
 
+    # si has cambiado tu propio rol (aunque lo limitas), refresca session
+    if _uid() == user.id:
+        session["role"] = user.role
+
     log_admin_action(
         admin_id=_uid(),
         action=AdminAction.Actions.USER_ROLE_CHANGE,
@@ -249,17 +266,13 @@ def admin_set_user_role(user_id: int):
         target_id=user.id,
     )
 
-    return jsonify({
-        "message": "Role updated",
-        "id": user.id,
-        "old_role": old_role,
-        "role": user.role,
-    })
+    return jsonify({"message": "Role updated", "id": user.id, "old_role": old_role, "role": user.role})
 
 
 # -------------------
 # BOOKS
 # -------------------
+
 
 @bp.route("/books", methods=["GET"])
 @login_required
@@ -278,9 +291,9 @@ def admin_list_books():
     if available:
         try:
             is_avail = _parse_bool(available)
-            query = query.filter(Book.is_available == is_avail)
         except ValueError:
             abort(400, description="available must be true/false")
+        query = query.filter(Book.is_available == is_avail)
 
     if owner_id:
         try:
@@ -295,19 +308,23 @@ def admin_list_books():
 
     books = query.order_by(Book.id.desc()).limit(200).all()
 
-    return jsonify([
-        {
-            "id": b.id,
-            "title": b.title,
-            "author": getattr(b, "author", None),
-            "genre": getattr(b, "genre", None),
-            "language": getattr(b, "language", None),
-            "owner_id": getattr(b, "donor_id", None) if hasattr(b, "donor_id") else getattr(b, "user_id", None),
-            "is_available": getattr(b, "is_available", True),
-            "created_at": getattr(b, "created_at", None),
-        }
-        for b in books
-    ])
+    return jsonify(
+        [
+            {
+                "id": b.id,
+                "title": b.title,
+                "author": getattr(b, "author", None),
+                "genre": getattr(b, "genre", None),
+                "language": getattr(b, "language", None),
+                "owner_id": getattr(b, "donor_id", None)
+                if hasattr(b, "donor_id")
+                else getattr(b, "user_id", None),
+                "is_available": getattr(b, "is_available", True),
+                "created_at": b.created_at.isoformat() if getattr(b, "created_at", None) else None,
+            }
+            for b in books
+        ]
+    )
 
 
 @bp.route("/books/<int:book_id>/availability", methods=["PATCH"])
@@ -341,6 +358,7 @@ def admin_set_book_availability(book_id: int):
 # BOOK REQUESTS
 # -------------------
 
+
 @bp.route("/book-requests", methods=["GET"])
 @login_required
 @admin_required
@@ -352,6 +370,8 @@ def admin_list_book_requests():
     query = BookRequest.query
 
     if status:
+        if status not in ALLOWED_REQUEST_STATUSES:
+            abort(400, description="Invalid status")
         query = query.filter(BookRequest.status == status)
 
     if book_id:
@@ -370,17 +390,19 @@ def admin_list_book_requests():
 
     reqs = query.order_by(BookRequest.id.desc()).limit(300).all()
 
-    return jsonify([
-        {
-            "id": r.id,
-            "book_id": r.book_id,
-            "requester_id": r.requester_id,
-            "status": r.status,
-            "created_at": getattr(r, "created_at", None),
-            "updated_at": getattr(r, "updated_at", None),
-        }
-        for r in reqs
-    ])
+    return jsonify(
+        [
+            {
+                "id": r.id,
+                "book_id": r.book_id,
+                "requester_id": r.requester_id,
+                "status": r.status,
+                "created_at": r.created_at.isoformat() if getattr(r, "created_at", None) else None,
+                "updated_at": r.updated_at.isoformat() if getattr(r, "updated_at", None) else None,
+            }
+            for r in reqs
+        ]
+    )
 
 
 @bp.route("/book-requests/<int:request_id>/status", methods=["PATCH"])
@@ -395,8 +417,8 @@ def admin_set_request_status(request_id: int):
 
     req = BookRequest.query.get_or_404(request_id)
 
-    # moderador limitado
-    if _role() == "moderator" and new_status not in {"REJECTED", "CANCELLED"}:
+    # moderador limitado: solo puede REJECTED
+    if _role() == "moderator" and new_status != "REJECTED":
         abort(403)
 
     req.status = new_status
@@ -421,8 +443,9 @@ def admin_set_request_status(request_id: int):
 
 
 # -------------------
-# AUDIT (PRO)
+# AUDIT
 # -------------------
+
 
 @bp.route("/audit", methods=["GET"])
 @login_required
@@ -480,15 +503,17 @@ def admin_list_audit():
 
     items = (
         q.order_by(AdminAction.id.desc())
-         .offset((page_n - 1) * per_page_n)
-         .limit(per_page_n)
-         .all()
+        .offset((page_n - 1) * per_page_n)
+        .limit(per_page_n)
+        .all()
     )
 
-    return jsonify({
-        "items": [a.to_dict() for a in items],
-        "page": page_n,
-        "per_page": per_page_n,
-        "total": total,
-        "pages": pages,
-    })
+    return jsonify(
+        {
+            "items": [a.to_dict() for a in items],
+            "page": page_n,
+            "per_page": per_page_n,
+            "total": total,
+            "pages": pages,
+        }
+    )
