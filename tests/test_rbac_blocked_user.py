@@ -2,10 +2,6 @@ from tests.conftest import login_blocked_session
 
 
 def test_blocked_user_gets_403_on_protected_endpoint(client):
-    # logged-in but blocked
     login_blocked_session(client, user_id=99, role="reader")
-
-    # Protected endpoint (adjust if your route differs)
     res = client.get("/admin/audit")
-
     assert res.status_code == 403
