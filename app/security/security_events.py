@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from flask import Request, current_app, session
+from flask import Request, session, current_app
 
 from app.extensions import db
 from app.models.security_event import SecurityEvent
@@ -20,13 +20,15 @@ def record_security_event(
     req: Request,
     user=None,
     details: str | None = None,
-    commit: bool = True,
 ) -> None:
-    """Best-effort: nunca debe romper la request."""
-    if current_app.config.get("TESTING"):
-        return
-
+    """
+    Best-effort: nunca debe romper la request.
+    En TESTING: no guarda (para no ensuciar tests).
+    """
     try:
+        if current_app.config.get("TESTING"):
+            return
+
         user_id = session.get("user_id") or getattr(user, "id", None)
         role = getattr(user, "role", None) if user else session.get("role")
 
@@ -43,7 +45,6 @@ def record_security_event(
             details=details,
         )
         db.session.add(ev)
-        if commit:
-            db.session.commit()
+        db.session.commit()
     except Exception:
         db.session.rollback()

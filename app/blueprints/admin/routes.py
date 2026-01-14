@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from app.models.security_event import SecurityEvent
+
 from datetime import datetime
 from functools import wraps
 
@@ -516,4 +518,85 @@ def admin_list_audit():
             "total": total,
             "pages": pages,
         }
+    )
+
+# -------------------
+# SECURITY EVENTS
+# -------------------
+
+@bp.route("/security-events", methods=["GET"])
+@login_required
+@admin_required
+def admin_list_security_events():
+    """
+    Lista últimos eventos de seguridad (máx 200), con filtros básicos.
+    """
+    limit = (request.args.get("limit") or "100").strip()
+    event_type = (request.args.get("event_type") or "").strip()
+    status_code = (request.args.get("status_code") or "").strip()
+    user_id = (request.args.get("user_id") or "").strip()
+    ip = (request.args.get("ip") or "").strip()
+    endpoint = (request.args.get("endpoint") or "").strip()
+    blueprint = (request.args.get("blueprint") or "").strip()
+
+    dt_from = (request.args.get("from") or "").strip()
+    dt_to = (request.args.get("to") or "").strip()
+
+    try:
+        limit_n = max(1, min(int(limit), 200))
+    except ValueError:
+        abort(400, description="limit must be int")
+
+    q = SecurityEvent.query
+
+    if event_type:
+        q = q.filter(SecurityEvent.event_type == event_type)
+
+    if status_code:
+        try:
+            q = q.filter(SecurityEvent.status_code == int(status_code))
+        except ValueError:
+            abort(400, description="status_code must be int")
+
+    if user_id:
+        try:
+            q = q.filter(SecurityEvent.user_id == int(user_id))
+        except ValueError:
+            abort(400, description="user_id must be int")
+
+    if ip:
+        q = q.filter(SecurityEvent.ip == ip)
+
+    if endpoint:
+        q = q.filter(SecurityEvent.endpoint == endpoint)
+
+    if blueprint:
+        q = q.filter(SecurityEvent.blueprint == blueprint)
+
+    if dt_from:
+        q = q.filter(SecurityEvent.created_at >= _parse_iso_dt(dt_from))
+
+    if dt_to:
+        q = q.filter(SecurityEvent.created_at <= _parse_iso_dt(dt_to))
+
+    items = q.order_by(SecurityEvent.id.desc()).limit(limit_n).all()
+
+    return jsonify(
+        [
+            {
+                "id": e.id,
+                "created_at": e.created_at.isoformat() if e.created_at else None,
+                "event_type": e.event_type,
+                "status_code": e.status_code,
+                "endpoint": e.endpoint,
+                "blueprint": e.blueprint,
+                "method": e.method,
+                "path": e.path,
+                "user_id": e.user_id,
+                "role": e.role,
+                "ip": e.ip,
+                "details": e.details,
+            }
+            for e in items
+        ]
     )
