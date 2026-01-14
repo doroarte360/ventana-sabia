@@ -1,54 +1,35 @@
 from __future__ import annotations
 
-from flask import Request, current_app, session
+from datetime import datetime, timezone
 
 from app.extensions import db
-from app.models.security_event import SecurityEvent
 
 
-def _client_ip(req: Request) -> str | None:
-    xff = req.headers.get("X-Forwarded-For")
-    if xff:
-        return xff.split(",")[0].strip()
-    return req.remote_addr
+class SecurityEvent(db.Model):
+    __tablename__ = "security_events"
 
+    id = db.Column(db.Integer, primary_key=True)
 
-def record_security_event(
-    *,
-    event_type: str,
-    status_code: int,
-    req: Request,
-    user=None,
-    details: str | None = None,
-    commit: bool = True,
-) -> None:
-    """
-    Best-effort: nunca debe romper la request.
-    - Por defecto hace commit.
-    - En TESTING no guarda (para no ensuciar tests).
-    """
-    if current_app.config.get("TESTING"):
-        return
+    created_at = db.Column(
+        db.DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+        index=True,
+    )
 
-    try:
-        user_id = session.get("user_id") or getattr(user, "id", None)
-        role = getattr(user, "role", None) if user else session.get("role")
+    # "deny_unauthorized" | "deny_blocked" | "deny_forbidden" | "rate_limited"
+    event_type = db.Column(db.String(32), nullable=False, index=True)
 
-        ev = SecurityEvent(
-            event_type=event_type,
-            status_code=status_code,
-            endpoint=req.endpoint,
-            blueprint=req.blueprint,
-            method=req.method,
-            path=req.path,
-            user_id=user_id,
-            role=role,
-            ip=_client_ip(req),
-            details=details,
-        )
-        db.session.add(ev)
+    status_code = db.Column(db.Integer, nullable=False, index=True)
 
-        if commit:
-            db.session.commit()
-    except Exception:
-        db.session.rollback()
+    endpoint = db.Column(db.String(128), nullable=True, index=True)
+    blueprint = db.Column(db.String(64), nullable=True, index=True)
+    method = db.Column(db.String(10), nullable=True)
+    path = db.Column(db.String(255), nullable=True)
+
+    user_id = db.Column(db.Integer, nullable=True, index=True)
+    role = db.Column(db.String(32), nullable=True, index=True)
+
+    ip = db.Column(db.String(64), nullable=True, index=True)
+
+    details = db.Column(db.Text, nullable=True)
