@@ -5,6 +5,7 @@ from werkzeug.local import LocalProxy
 
 from .config import get_config
 from .extensions import db, migrate
+from .security.security_events import record_security_event
 
 
 def _install_request_proxy_fix():
@@ -89,26 +90,26 @@ def create_app(config_overrides: dict | None = None):
     # -----------------------------
     @app.before_request
     def enforce_global_access_min():
+        # 0) endpoint None suele ser 404 / rutas no resueltas
         if request.endpoint is None:
             return
 
+        # 1) permitir preflight CORS
         if request.method == "OPTIONS":
             return
 
+        # 2) permitir estáticos
         if request.endpoint == "static":
             return
 
-        # rate limit solo para auth.* y NO en tests
-        # OJO: auth.* es público, por eso va ANTES del return de is_public_endpoint
+        # 3) rate limit SOLO para auth.* y NO en tests
+        #    OJO: auth.* es público, por eso va ANTES del return de is_public_endpoint
         if (not app.config.get("TESTING")) and request.endpoint.startswith("auth."):
             from .security.rate_limit import hit
 
             xff = request.headers.get("X-Forwarded-For")
             ip = (xff.split(",")[0].strip() if xff else request.remote_addr) or "unknown"
 
-            # límites por endpoint
-            # - login: más estricto
-            # - register / resto auth: algo más laxo
             if request.endpoint == "auth.login":
                 limit, window_sec = 10, 60
             elif request.endpoint == "auth.register":
@@ -122,36 +123,68 @@ def create_app(config_overrides: dict | None = None):
                     "RATE LIMIT 429: ip=%s endpoint=%s limit=%s window=%s",
                     ip, request.endpoint, limit, window_sec
                 )
+                record_security_event(
+                    event_type="rate_limited",
+                    status_code=429,
+                    req=request,
+                    user=None,
+                    details=f"limit={limit} window={window_sec} key={key}",
+                )
                 abort(429)
 
+        # 4) públicos: auth.* (pese a rate limit), health/index/routes, etc.
         if is_public_endpoint(request.endpoint):
             return
 
-        # a partir de aquí: requiere login
+        # 5) a partir de aquí: requiere login
         user_id = session.get("user_id")
         if not user_id:
             app.logger.info(
                 "RBAC DENY 401: no session user_id | endpoint=%s method=%s path=%s",
                 request.endpoint, request.method, request.path,
             )
+            record_security_event(
+                event_type="deny_unauthorized",
+                status_code=401,
+                req=request,
+                user=None,
+                details="missing session user_id",
+            )
             abort(401)
 
+        # 6) cargar usuario
         from .models import User
         user = db.session.get(User, user_id)
 
+        # 7) bloqueo global
         if user and (getattr(user, "is_blocked", False) is True or getattr(user, "status", None) == "blocked"):
             app.logger.info(
                 "RBAC DENY 403: blocked user_id=%s role=%s | endpoint=%s method=%s path=%s",
                 user_id, getattr(user, "role", None),
                 request.endpoint, request.method, request.path,
             )
+            record_security_event(
+                event_type="deny_blocked",
+                status_code=403,
+                req=request,
+                user=user,
+                details="user blocked",
+            )
             abort(403)
 
+        # 8) RBAC fino por reglas
         if not check_access(user, request, ACCESS_RULES):
             app.logger.info(
                 "RBAC DENY 403: forbidden user_id=%s role=%s bp=%s | endpoint=%s method=%s path=%s",
                 user_id, getattr(user, "role", None), request.blueprint,
                 request.endpoint, request.method, request.path,
+            )
+            record_security_event(
+                event_type="deny_forbidden",
+                status_code=403,
+                req=request,
+                user=user,
+                details=f"bp={request.blueprint}",
             )
             abort(403)
 
