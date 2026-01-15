@@ -104,7 +104,8 @@ def me():
     if not user_id:
         return jsonify(authenticated=False), 200
 
-    user = User.query.get(user_id)
+    from app.extensions import db
+    user = db.session.get(User, user_id)
 
     if not user:
         session.clear()

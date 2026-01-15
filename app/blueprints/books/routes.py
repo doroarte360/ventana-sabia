@@ -157,7 +157,9 @@ def search_books():
 
 @bp.get("/<int:book_id>")
 def get_book(book_id: int):
-    book = Book.query.get(book_id)
+    from app.extensions import db
+    book = db.session.get(Book, book_id)
+
     if not book:
         return jsonify(error="not_found"), 404
 

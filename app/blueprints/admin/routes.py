@@ -83,7 +83,9 @@ def _set_book_availability_from_requests(book_id: int) -> None:
         .first()
         is not None
     )
-    book = Book.query.get(book_id)
+    from app.extensions import db
+    book = db.session.get(Book, book_id)
+
     if not book:
         return
     book.is_available = not has_accepted
@@ -178,7 +180,12 @@ def admin_set_user_block(user_id: int):
     except ValueError:
         abort(400, description="is_blocked must be true/false")
 
-    user = User.query.get_or_404(user_id)
+    from flask import abort
+    from app.extensions import db
+
+    user = db.session.get(User, user_id)
+    if user is None:
+        abort(404)
 
     # solo admin puede tocar a admins
     if getattr(user, "role", None) == "admin" and _role() != "admin":
@@ -214,7 +221,12 @@ def admin_set_user_status(user_id: int):
     except ValueError:
         abort(400, description="is_active must be true/false")
 
-    user = User.query.get_or_404(user_id)
+    from flask import abort
+    from app.extensions import db
+
+    user = db.session.get(User, user_id)
+    if user is None:
+        abort(404)
 
     # solo admin puede tocar a admins
     if getattr(user, "role", None) == "admin" and _role() != "admin":
@@ -247,7 +259,12 @@ def admin_set_user_role(user_id: int):
     if new_role not in ALLOWED_ROLES:
         abort(400, description="Invalid role")
 
-    user = User.query.get_or_404(user_id)
+    from flask import abort
+    from app.extensions import db
+
+    user = db.session.get(User, user_id)
+    if user is None:
+        abort(404)
 
     # evita auto-democión
     if _uid() == user_id and new_role != "admin":
@@ -342,7 +359,13 @@ def admin_set_book_availability(book_id: int):
     except ValueError:
         abort(400, description="is_available must be true/false")
 
-    book = Book.query.get_or_404(book_id)
+    from flask import abort
+    from app.extensions import db
+
+    book = db.session.get(Book, book_id)
+    if book is None:
+        abort(404)
+
     book.is_available = is_available
     db.session.commit()
 
@@ -417,7 +440,12 @@ def admin_set_request_status(request_id: int):
     if new_status not in ALLOWED_REQUEST_STATUSES:
         abort(400, description="Invalid status")
 
-    req = BookRequest.query.get_or_404(request_id)
+    from flask import abort
+    from app.extensions import db
+
+    req = db.session.get(BookRequest, request_id)
+    if req is None:
+        abort(404)
 
     # moderador limitado: solo puede REJECTED
     if _role() == "moderator" and new_status != "REJECTED":
@@ -427,8 +455,11 @@ def admin_set_request_status(request_id: int):
 
     # sincroniza disponibilidad del libro si toca
     if new_status == "ACCEPTED":
-        book = Book.query.get_or_404(req.book_id)
+        book = db.session.get(Book, req.book_id)
+        if book is None:
+            abort(404)
         book.is_available = False
+
     else:
         _set_book_availability_from_requests(req.book_id)
 

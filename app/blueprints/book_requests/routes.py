@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify, session
+from flask import Blueprint, request, jsonify, session, abort
 from ...extensions import db
 from ...models import Book, BookRequest
 from ..auth.decorators import login_required
@@ -16,7 +16,8 @@ def create_request():
     if not book_id:
         return jsonify(error="missing_fields", required=["book_id"]), 400
 
-    book = Book.query.get(book_id)
+    # SQLAlchemy 2.x: Session.get
+    book = db.session.get(Book, book_id)
     if not book:
         return jsonify(error="book_not_found"), 404
 
@@ -29,11 +30,14 @@ def create_request():
     if book.donor_id == requester_id:
         return jsonify(error="cannot_request_own_book"), 400
 
-    existing = BookRequest.query.filter_by(
-        book_id=book.id,
-        requester_id=requester_id,
-        status="PENDING"
-    ).first()
+    existing = (
+        BookRequest.query.filter_by(
+            book_id=book.id,
+            requester_id=requester_id,
+            status="PENDING",
+        )
+        .first()
+    )
 
     if existing:
         return jsonify(error="request_already_pending", request_id=existing.id), 409
@@ -41,7 +45,7 @@ def create_request():
     req = BookRequest(
         book_id=book.id,
         requester_id=requester_id,
-        status="PENDING"
+        status="PENDING",
     )
 
     db.session.add(req)
@@ -52,9 +56,8 @@ def create_request():
         id=req.id,
         book_id=req.book_id,
         requester_id=req.requester_id,
-        status=req.status
+        status=req.status,
     ), 201
-
 
 
 # ---------- MY REQUESTS ----------
@@ -86,12 +89,18 @@ def my_requests():
             for r in reqs
         ]
     ), 200
+
+
 # ---------- CANCEL REQUEST (REQUESTER) ----------
 @bp.patch("/<int:request_id>/cancel")
 @login_required
 def cancel_request(request_id):
     user_id = session["user_id"]
-    req = BookRequest.query.get_or_404(request_id)
+
+    # SQLAlchemy 2.x: Session.get + abort 404
+    req = db.session.get(BookRequest, request_id)
+    if req is None:
+        abort(404)
 
     if req.requester_id != user_id:
         return jsonify(error="forbidden"), 403
@@ -118,15 +127,15 @@ def cancel_request(request_id):
 # ---------- ACCEPT / REJECT (DONOR) ----------
 def _ensure_donor(req: BookRequest):
     user_id = session["user_id"]
-    if req.book.donor_id != user_id:
-        return False
-    return True
+    return req.book.donor_id == user_id
 
 
 @bp.patch("/<int:request_id>/accept")
 @login_required
 def donor_accept(request_id):
-    req = BookRequest.query.get_or_404(request_id)
+    req = db.session.get(BookRequest, request_id)
+    if req is None:
+        abort(404)
 
     if not _ensure_donor(req):
         return jsonify(error="forbidden"), 403
@@ -144,7 +153,9 @@ def donor_accept(request_id):
 @bp.patch("/<int:request_id>/reject")
 @login_required
 def donor_reject(request_id):
-    req = BookRequest.query.get_or_404(request_id)
+    req = db.session.get(BookRequest, request_id)
+    if req is None:
+        abort(404)
 
     if not _ensure_donor(req):
         return jsonify(error="forbidden"), 403
