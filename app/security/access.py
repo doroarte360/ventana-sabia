@@ -24,10 +24,18 @@ def is_public_endpoint(endpoint: str | None) -> bool:
     return False
 
 def check_access(user, req: Request, rules: Iterable[Rule]) -> bool:
-    # admin override (opcional; si lo quieres, déjalo)
+    # admin override (se mantiene)
     if getattr(user, "role", None) == "admin":
         return True
 
+    # ✅ v1.3: permiso por endpoint (si aplica)
+    from .permissions import get_required_permission, role_has_permission
+
+    required = get_required_permission(req.endpoint, req.method)
+    if required:
+        return role_has_permission(getattr(user, "role", None), required)
+
+    # ✅ fallback: reglas actuales (compat)
     bp = req.blueprint
     method = req.method
     role = getattr(user, "role", None)
