@@ -11,8 +11,10 @@ def log_admin_action(
     action: str,
     target_type: str,
     target_id: int | None = None,
+    details: dict | None = None,
 ) -> AdminAction:
-    ip = (request.headers.get("X-Forwarded-For") or "").split(",")[0].strip() or request.remote_addr
+    xff = request.headers.get("X-Forwarded-For")
+    ip = (xff.split(",")[0].strip() if xff else request.remote_addr) or "unknown"
     ua = request.headers.get("User-Agent")
 
     entry = AdminAction(
@@ -22,6 +24,10 @@ def log_admin_action(
         target_id=target_id,
         ip_address=ip,
         user_agent=ua,
+        endpoint=request.endpoint,
+        method=request.method,
+        path=request.path,
+        details=details,
     )
     db.session.add(entry)
     db.session.commit()

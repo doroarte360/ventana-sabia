@@ -195,6 +195,8 @@ def admin_set_user_block(user_id: int):
     if _uid() == user_id and is_blocked:
         abort(400, description="You cannot block yourself")
 
+    old_blocked = bool(getattr(user, "is_blocked", False))
+
     user.is_blocked = is_blocked
     db.session.commit()
 
@@ -203,6 +205,7 @@ def admin_set_user_block(user_id: int):
         action=AdminAction.Actions.USER_BLOCK if is_blocked else AdminAction.Actions.USER_UNBLOCK,
         target_type="user",
         target_id=user.id,
+        details={"old_is_blocked": old_blocked, "new_is_blocked": user.is_blocked},
     )
 
     return jsonify({"message": "Block updated", "id": user.id, "is_blocked": user.is_blocked})
@@ -236,6 +239,8 @@ def admin_set_user_status(user_id: int):
     if _uid() == user_id and not is_active:
         abort(400, description="You cannot deactivate yourself")
 
+    old_active = bool(getattr(user, "is_active", True))
+
     user.is_active = is_active
     db.session.commit()
 
@@ -244,6 +249,7 @@ def admin_set_user_status(user_id: int):
         action="user.activate" if is_active else "user.deactivate",
         target_type="user",
         target_id=user.id,
+        details={"old_is_active": old_active, "new_is_active": user.is_active},
     )
 
     return jsonify({"message": "Status updated", "id": user.id, "is_active": user.is_active})
@@ -283,6 +289,7 @@ def admin_set_user_role(user_id: int):
         action=AdminAction.Actions.USER_ROLE_CHANGE,
         target_type="user",
         target_id=user.id,
+        details={"old_role": old_role, "new_role": user.role},
     )
 
     return jsonify({"message": "Role updated", "id": user.id, "old_role": old_role, "role": user.role})
@@ -366,6 +373,8 @@ def admin_set_book_availability(book_id: int):
     if book is None:
         abort(404)
 
+    old_avail = bool(getattr(book, "is_available", True))
+
     book.is_available = is_available
     db.session.commit()
 
@@ -374,6 +383,7 @@ def admin_set_book_availability(book_id: int):
         action="book.set_availability",
         target_type="book",
         target_id=book.id,
+        details={"old_is_available": old_avail, "new_is_available": book.is_available},
     )
 
     return jsonify({"message": "Availability updated", "id": book.id, "is_available": book.is_available})
@@ -451,6 +461,8 @@ def admin_set_request_status(request_id: int):
     if _role() == "moderator" and new_status != "REJECTED":
         abort(403)
 
+    old_status = req.status
+
     req.status = new_status
 
     # sincroniza disponibilidad del libro si toca
@@ -470,6 +482,7 @@ def admin_set_request_status(request_id: int):
         action=f"request.status.{new_status.lower()}",
         target_type="request",
         target_id=req.id,
+        details={"old_status": old_status, "new_status": req.status},
     )
 
     return jsonify({"message": "Request updated", "id": req.id, "status": req.status})

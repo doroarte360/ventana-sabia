@@ -21,6 +21,13 @@ class AdminAction(db.Model):
     # Contexto mínimo
     ip_address = db.Column(db.String(45), nullable=True)  # IPv4/IPv6
     user_agent = db.Column(db.String(255), nullable=True)
+    endpoint = db.Column(db.String(120), nullable=True, index=True)
+    method = db.Column(db.String(10), nullable=True)
+    path = db.Column(db.String(255), nullable=True)
+    details = db.Column(db.JSON, nullable=True)
+
+
+
 
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, index=True)
 
@@ -38,6 +45,12 @@ class AdminAction(db.Model):
             "ip_address": self.ip_address,
             "user_agent": self.user_agent,
             "created_at": self.created_at.isoformat() + "Z" if self.created_at else None,
+            "endpoint": self.endpoint,
+            "method": self.method,
+            "path": self.path,
+            "details": self.details,
+
+
         }
 
     # (Opcional) Constantes para evitar strings sueltos
