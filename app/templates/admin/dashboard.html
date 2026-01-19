@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+
+{% block nav_active %}dashboard{% endblock %}
+
+{% block title %}Dashboard · Ventana Sabia{% endblock %}
+{% block header %}Dashboard{% endblock %}
+
+{% block content %}
+  <section class="card">
+    <h2>Estado</h2>
+    <p class="muted">Bienvenido. Desde aquí podrás gestionar solicitudes, usuarios y auditoría.</p>
+    <div id="dashStats" class="grid"></div>
+  </section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // ejemplo mínimo: ping a /auth/me ya lo hace admin.js
+</script>
+{% endblock %}

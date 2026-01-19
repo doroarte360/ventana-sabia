@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Solicitudes · Ventana Sabia{% endblock %}
+{% block header %}Solicitudes de libros{% endblock %}
+
+{% block content %}
+<section class="card">
+  <h2>Solicitudes</h2>
+  <p class="muted">
+    Gestiona las solicitudes de préstamo de libros.
+  </p>
+
+  <div class="table-wrap">
+    <table class="table" id="requestsTable">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Libro</th>
+          <th>Solicitante</th>
+          <th>Estado</th>
+          <th>Fecha</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- rows injected by JS -->
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/admin.js"></script>
+{% endblock %}

@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Usuarios · Ventana Sabia{% endblock %}
+{% block header %}Usuarios{% endblock %}
+
+{% block content %}
+<section class="card">
+  <h2>Gestión de usuarios</h2>
+  <p class="muted">
+    Administra usuarios, roles y estado de acceso.
+  </p>
+
+  <div class="table-wrap">
+    <table class="table" id="usersTable">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Email</th>
+          <th>Rol</th>
+          <th>Estado</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- filas dinámicas -->
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/admin.js"></script>
+{% endblock %}

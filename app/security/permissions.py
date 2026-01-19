@@ -51,7 +51,7 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         P_USERS_UPDATE_BLOCK,
 
         P_REQUESTS_REJECT,  # ✅ solo rechazar
-        # P_REQUESTS_APPROVE no
+
     },
     "admin": {"*"},
 }

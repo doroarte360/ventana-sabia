@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>{% block title %}Ventana Sabia{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}" />
+</head>
+<body class="layout">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="logo">VS</div>
+      <div>
+        <div class="brand-name">Ventana Sabia</div>
+        <div class="brand-sub muted">Panel</div>
+      </div>
+    </div>
+
+    <nav class="nav">
+  <a class="nav-item" data-nav="dashboard" href="{{ url_for('ui.admin_dashboard') }}">Dashboard</a>
+  <a class="nav-item" data-nav="requests" href="{{ url_for('ui.admin_book_requests_page') }}">Solicitudes</a>
+  <a class="nav-item" data-nav="users" href="{{ url_for('ui.admin_users_page') }}">Usuarios</a>
+  <a class="nav-item" data-nav="audit" href="{{ url_for('ui.admin_audit_page') }}">Auditoría</a>
+  <a class="nav-item" data-nav="security" href="{{ url_for('ui.admin_security_page') }}">Seguridad</a>
+</nav>
+
+
+    <div class="sidebar-footer">
+      <div id="whoami" class="whoami muted">—</div>
+      <button id="btnLogout" class="btn btn-ghost" type="button">Cerrar sesión</button>
+    </div>
+  </aside>
+
+  <div class="content">
+    <header class="topbar">
+      <div class="topbar-title">{% block header %}{% endblock %}</div>
+      <div class="topbar-actions">
+        {% block actions %}{% endblock %}
+      </div>
+    </header>
+
+      <main class="main">
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+
+  <!-- 🔹 NAV ACTIVA (la define cada página hija) -->
+  <script>
+    window.__NAV_ACTIVE__ = "{% block nav_active %}{% endblock %}";
+  </script>
+
+  <script src="{{ url_for('static', filename='js/common.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/admin.js') }}"></script>
+
+  {% block scripts %}{% endblock %}
+</body>
+</html>
+

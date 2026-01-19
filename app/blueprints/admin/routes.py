@@ -119,7 +119,7 @@ def admin_set_request_status(request_id: int):
     # ✅ v1.5: permiso por acción (no por rol)
     required_perm = _required_permission_for_request_status(new_status)
     if not role_has_permission(_role(), required_perm):
-        abort(403)
+        abort(403, description="forbidden")
 
     old_status = req.status
     req.status = new_status
