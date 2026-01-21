@@ -180,6 +180,18 @@ def _required_perm_for_request_status(new_status: str) -> str:
         return P_REQUESTS_REJECT
     abort(400, description="Only accepted/rejected allowed here")
 
+def _set_book_availability_from_requests(book_id: int) -> None:
+    has_accepted = (
+        db.session.query(BookRequest.id)
+        .filter(BookRequest.book_id == book_id, BookRequest.status == "accepted")
+        .first()
+        is not None
+    )
+    book = db.session.get(Book, book_id)
+    if not book:
+        return
+    book.is_available = not has_accepted
+
 
 @bp.patch("/book-requests/<int:request_id>/status")
 @login_required
@@ -208,9 +220,7 @@ def api_admin_set_book_request_status(request_id: int):
         if book:
             book.is_available = False
     else:
-        # si rechazamos, no cambiamos disponibilidad a true a ciegas:
-        # la dejas como esté (o si quieres, implementamos recalculo)
-        pass
+        _set_book_availability_from_requests(req.book_id)
 
     db.session.commit()
 

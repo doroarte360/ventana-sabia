@@ -1,4 +1,109 @@
-// app/static/js/admin.js
+// --------------------
+// Requests: list + actions
+// --------------------
+async function loadRequests() {
+  const tbody = document.querySelector("#requestsTable tbody");
+  const empty = document.getElementById("requestsEmpty");
+  if (!tbody) return;
+
+  tbody.innerHTML = `<tr><td colspan="5">Cargando…</td></tr>`;
+  if (empty) empty.style.display = "none";
+
+  try {
+    const res = await api("/api/admin/book-requests", { method: "GET" });
+    const items = Array.isArray(res) ? res : (res.items || []);
+
+    if (!items.length) {
+      tbody.innerHTML = "";
+      if (empty) empty.style.display = "block";
+      return;
+    }
+
+    tbody.innerHTML = "";
+    for (const r of items) tbody.appendChild(renderRequestRow(r));
+  } catch (err) {
+    console.error(err);
+    tbody.innerHTML = `<tr><td colspan="5">Error cargando solicitudes</td></tr>`;
+  }
+}
+
+function renderRequestRow(r) {
+  const status = String(r.status || "").toLowerCase();
+  const isPending = status === "pending";
+
+  const statusHtml =
+    status === "accepted" ? badge("Aceptada", "badge-green") :
+    status === "rejected" ? badge("Rechazada", "badge-red") :
+    status === "cancelled" ? badge("Cancelada", "badge-gray") :
+    badge("Pendiente", "badge-yellow");
+
+  const tr = document.createElement("tr");
+  tr.dataset.requestId = String(r.id);
+
+  tr.innerHTML = `
+    <td>${r.id ?? "—"}</td>
+    <td>${r.book_id ?? "—"}</td>
+    <td>${r.requester_id ?? "—"}</td>
+    <td class="cell-status">${statusHtml}</td>
+    <td class="cell-actions">
+      ${
+        isPending
+          ? `
+            <button class="btn btn-xs" data-action="accept" data-id="${r.id}">Aceptar</button>
+            <button class="btn btn-xs btn-danger" data-action="reject" data-id="${r.id}">Rechazar</button>
+          `
+          : `<span class="muted">—</span>`
+      }
+    </td>
+  `;
+  return tr;
+}
+
+async function setRequestStatus(requestId, status) {
+  return api(`/api/admin/book-requests/${requestId}/status`, {
+    method: "PATCH",
+    body: JSON.stringify({ status }),
+  });
+}
+
+function wireRequestsActions() {
+  const table = document.getElementById("requestsTable");
+  if (!table) return;
+
+  table.addEventListener("click", async (e) => {
+    const btn = e.target.closest("button[data-action]");
+    if (!btn) return;
+
+    const action = btn.dataset.action;
+    const requestId = Number(btn.dataset.id);
+    if (!requestId) return;
+
+    let status = null;
+    if (action === "accept") status = "accepted";
+    if (action === "reject") status = "rejected";
+    if (!status) return;
+
+    const ok = confirm(status === "accepted" ? "¿Aceptar esta solicitud?" : "¿Rechazar esta solicitud?");
+    if (!ok) return;
+
+    const oldText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "Guardando…";
+
+    try {
+      await setRequestStatus(requestId, status);
+      showToast(status === "accepted" ? "Solicitud aceptada" : "Solicitud rechazada");
+      await loadRequests();
+    } catch (err) {
+      console.error(err);
+      showToast(err.message || "Error", true);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = oldText;
+    }
+  });
+}
+
 
 // --------------------
 // Session / header

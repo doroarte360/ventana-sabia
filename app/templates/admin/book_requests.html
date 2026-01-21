@@ -1,35 +1,30 @@
 {% extends "base.html" %}
-
 {% block title %}Solicitudes · Ventana Sabia{% endblock %}
 {% block header %}Solicitudes{% endblock %}
 {% block nav_active %}requests{% endblock %}
 
 {% block content %}
 <section class="card">
-  <h2>Gestión de solicitudes</h2>
-  <p class="muted">Filtra y gestiona solicitudes (aceptar / rechazar).</p>
-
-  <div class="filters">
-    <input id="rStatus" class="input" placeholder="status (pending/accepted/rejected/cancelled)" />
-    <input id="rBookId" class="input" placeholder="book_id" />
-    <input id="rRequesterId" class="input" placeholder="requester_id" />
-    <button id="btnApplyReqFilters" class="btn" type="button">Aplicar</button>
-    <button id="btnClearReqFilters" class="btn btn-ghost" type="button">Limpiar</button>
-  </div>
+  <h2>Solicitudes de libros</h2>
+  <p class="muted">Acepta o rechaza solicitudes pendientes.</p>
 
   <div class="table-wrap">
     <table class="table" id="requestsTable">
       <thead>
         <tr>
           <th>ID</th>
-          <th>Book</th>
-          <th>Requester</th>
-          <th>Status</th>
+          <th>Libro</th>
+          <th>Solicitante</th>
+          <th>Estado</th>
           <th>Acciones</th>
         </tr>
       </thead>
       <tbody></tbody>
     </table>
+  </div>
+
+  <div id="requestsEmpty" class="muted" style="display:none; padding: 12px 2px;">
+    No hay solicitudes.
   </div>
 </section>
 {% endblock %}
