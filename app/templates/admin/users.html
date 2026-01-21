@@ -5,9 +5,33 @@
 {% block content %}
 <section class="card">
   <h2>Gestión de usuarios</h2>
-  <p class="muted">
-    Administra usuarios, roles y estado de acceso.
-  </p>
+  <p class="muted">Administra usuarios, roles y estado de acceso.</p>
+
+  <div class="filters">
+    <input id="fQ" class="input" type="search" placeholder="Buscar por email/username…" />
+
+    <select id="fRole" class="input">
+      <option value="">Rol (todos)</option>
+      <option value="admin">admin</option>
+      <option value="moderator">moderator</option>
+      <option value="reader">reader</option>
+    </select>
+
+    <select id="fActive" class="input">
+      <option value="">Activo (todos)</option>
+      <option value="true">Activos</option>
+      <option value="false">Inactivos</option>
+    </select>
+
+    <select id="fBlocked" class="input">
+      <option value="">Bloqueo (todos)</option>
+      <option value="true">Bloqueados</option>
+      <option value="false">No bloqueados</option>
+    </select>
+
+    <button id="btnApplyFilters" class="btn" type="button">Aplicar</button>
+    <button id="btnClearFilters" class="btn btn-ghost" type="button">Limpiar</button>
+  </div>
 
   <div class="table-wrap">
     <table class="table" id="usersTable">
@@ -20,12 +44,11 @@
           <th>Acciones</th>
         </tr>
       </thead>
-      <tbody>
-        <!-- filas dinámicas -->
-      </tbody>
+      <tbody></tbody>
     </table>
   </div>
 </section>
+
 {% endblock %}
 
 {% block scripts %}
